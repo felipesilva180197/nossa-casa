@@ -241,6 +241,7 @@ body.locked #lock{display:flex}
 
 <dialog id="dlg"><form method="dialog" id="form"></form></dialog>
 <dialog id="dlgc"><form method="dialog"><h3>Confirmar</h3><p id="dlgcM" style="margin:0"></p><div class="dlg-actions"><button class="btn" value="no">Cancelar</button><button class="btn primary" value="yes" id="dlgcOk">Confirmar</button></div></form></dialog>
+<dialog id="dlgx"><form method="dialog"><h3 id="dlgxT">Excluir</h3><p id="dlgxM" style="margin:0"></p><div class="dlg-actions" id="dlgxB"></div></form></dialog>
 <dialog id="dlgs" style="width:min(720px,96vw)"><div class="dlgpad">
   <div style="display:flex;gap:8px">
     <input id="sq" class="inp" style="font-size:16px;padding:12px" placeholder="Buscar por descrição, vertente ou valor" autocomplete="off" aria-label="Buscar">
@@ -545,6 +546,7 @@ async function syncPlan(p){
     const id=`pc-${p.id}-${x.k}`; keep.add(id);
     const old=existing.find(e=>e.id===id);
     if(old&&old.pago) continue;
+    if((p.puladas||[]).includes(x.k)){ if(old) await Store.del("lancamentos",id); continue; }
     const venc = p.dia ? `${x.month}-${pad2(Math.min(+p.dia,daysIn(x.month)))}` : (formaOf(p)==="cartao"?faturaVenc(cardById(cardOf(p)),x.month):"");
     await Store.put("lancamentos",Object.assign({}, old||{criadoPor:S.me,criadoEm:new Date().toISOString(),pago:x.month<cur,obs:""},{
       id, planId:p.id, parcela:x.k, month:x.month, desc:`${p.desc} (${x.k}/${p.n})`, valor:x.valor, cat:p.cat, tipo:"parcela",
@@ -1244,6 +1246,11 @@ function openPlan(p){
 /* =====================================================================
    14. AÇÕES
    ===================================================================== */
+function askChoice(title,msg,options){   /* options: [[valor, rótulo, classe]] */
+  const d=$("#dlgx"); $("#dlgxT").textContent=title; $("#dlgxM").textContent=msg; d.returnValue="";
+  $("#dlgxB").innerHTML=`<button class="btn" value="">Cancelar</button>`+options.map(([v,l,c])=>`<button class="btn ${c||""}" value="${esc(v)}">${esc(l)}</button>`).join("");
+  return new Promise(res=>{ d.addEventListener("close",()=>res(d.returnValue||null),{once:true}); d.showModal(); });
+}
 function askConfirm(msg,okLabel){
   const d=$("#dlgc"); $("#dlgcM").textContent=msg; $("#dlgcOk").textContent=okLabel||"Confirmar"; d.returnValue="";
   return new Promise(res=>{ d.addEventListener("close",()=>res(d.returnValue==="yes"),{once:true}); d.showModal(); });
@@ -1252,6 +1259,20 @@ async function deleteEntry(id){
   const en=S.entries.find(x=>x.id===id); if(!en) return;
   const rr=en.recId&&S.recs.find(r=>r.id===en.recId);
   const copias=monthEntries(en.month).filter(x=>x.id!==en.id&&norm(x.desc)===norm(en.desc));
+  const pl=isParc(en)&&S.plans.find(p=>p.id===en.planId);
+  if(pl&&!copias.length){
+    const st=planStatus(pl);
+    const op=await askChoice("Excluir parcela",`"${en.desc}" faz parte de "${pl.desc}", que ainda tem ${st.abertas.length} parcela(s) em aberto (${moneyF(st.restante)}).`,
+      [["uma","Só esta parcela",""],["todas","Excluir a compra inteira","primary"]]);
+    if(!op) return;
+    if(op==="todas"){
+      for(const e of st.abertas) await Store.del("lancamentos",e.id);
+      await Store.del("parcelamentos",pl.id);
+      toast("Compra parcelada excluída"); return;
+    }
+    await Store.put("parcelamentos",{...pl,puladas:[...new Set([...(pl.puladas||[]),en.parcela])]});
+    await Store.del("lancamentos",id); toast("Parcela excluída"); return;
+  }
   const msg = copias.length ? `Excluir esta cópia de "${en.desc}"? A outra continua.`
     : rr ? `Excluir "${en.desc}" só de ${monthName(en.month)}? Os outros meses continuam.`
     : isParc(en) ? `Excluir a parcela "${en.desc}"? Para tirar a compra toda, exclua em "Fixas e parcelas".`
