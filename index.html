@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nossa Casa | Contas do mês</title>
 <meta name="theme-color" content="#1F4B47">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -179,6 +179,36 @@ body.locked #lock{display:flex}
 
 .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
+/* ----- celular ----- */
+@media (max-width:600px){
+  .wrap{padding:12px 12px calc(120px + env(safe-area-inset-bottom,0px))}
+  .top{gap:8px}
+  .logo{font-size:19px}
+  .month{flex:1;justify-content:space-between}
+  .month strong{flex:1;min-width:0;font-size:15px}
+  .month button{width:42px;height:42px}
+  .icon{height:42px;min-width:42px;font-size:18px}
+  .tools{flex:1;justify-content:flex-end}
+  .tools select{height:42px}
+  .tabs{position:sticky;top:0;z-index:5;background:var(--bg);margin:12px -12px;padding:0 12px}
+  .tabs button{padding:12px 14px}
+  .hero .total{font-size:40px}
+  .people{gap:8px}
+  .item{padding:13px 2px}
+  .chk{width:26px;height:26px}
+  .actions button{padding:10px}
+  .btn{padding:11px 16px}
+  .fab-main{padding:16px 26px;font-size:17px;margin-bottom:env(safe-area-inset-bottom,0px)}
+  .fab-menu button{padding:13px 18px}
+  /* formulário ocupa a tela toda, com botões sempre à vista */
+  dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0}
+  dialog form,.dlgpad{padding:16px 16px calc(96px + env(safe-area-inset-bottom,0px))}
+  label.f input,label.f select,.inp,dialog input,dialog select{font-size:16px;padding:12px}
+  .dlg-actions{position:fixed;left:0;right:0;bottom:0;margin:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);gap:8px}
+  .dlg-actions .btn{flex:1;text-align:center}
+  .dlg-actions .btn.danger{flex:0 0 auto}
+  details.mais>summary{padding:12px 0;font-weight:700}
+}
 @media (max-width:600px){
   .item{grid-template-columns:auto 1fr auto}
   .item .actions{grid-column:2/-1;justify-content:flex-end}
@@ -207,7 +237,7 @@ body.locked #lock{display:flex}
     <div class="logo"><i></i>Nossa Casa</div>
     <div class="month">
       <button id="prev" aria-label="Mês anterior">‹</button>
-      <strong id="monthLabel"></strong>
+      <strong id="monthLabel" role="button" tabindex="0" title="Voltar para o mês atual" style="cursor:pointer"></strong>
       <button id="next" aria-label="Próximo mês">›</button>
     </div>
     <div class="tools">
@@ -1074,10 +1104,10 @@ function readDivisao(d,total){
   const s=shareOf({valor:total,divisao:dv,parteA:a});
   return {divisao:dv,parteA:s.a,parteB:s.b,quem:dv==="a"?"a":dv==="b"?"b":"conjunto"};
 }
-function formShell(title,body,{del,submit}){
+function formShell(title,body,{del,submit,extra}){
   const f=$("#form");
   f.innerHTML=`<h3>${title}</h3><div class="fields">${body}</div>
-    <div class="dlg-actions">${del?`<button class="btn danger" type="button" data-del style="margin-right:auto">Excluir</button>`:""}<button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">${submit}</button></div>`;
+    <div class="dlg-actions">${del?`<button class="btn danger" type="button" data-del style="margin-right:auto">Excluir</button>`:""}${extra?`<button class="btn" type="button" data-extra>${esc(extra)}</button>`:""}<button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">${submit}</button></div>`;
   f.querySelector("[data-close]").onclick=()=>$("#dlg").close();
   if(del) f.querySelector("[data-del]").onclick=()=>{ $("#dlg").close(); del(); };
   return {f, q:n=>f.querySelector(`[name="${n}"]`)};
@@ -1092,23 +1122,29 @@ function openEntry(e,preset){
     : e.recId ? `<p class="note full" style="margin:0">Conta fixa. Alterar aqui muda só ${esc(monthName(e.month))}.</p>` : "";
   const {f,q}=formShell(isNew?"Lançar despesa":"Editar lançamento",`
     ${isClosed(e.month)?`<p class="banner full" style="margin:0">${esc(monthName(e.month))} já foi fechado.</p>`:""}${extra}
-    <label class="f full">Descrição<input name="desc" required value="${esc(e.desc)}" placeholder="Ex: Padaria, supermercado, farmácia" list="descs" autocomplete="off"></label>
+    <label class="f full">Descrição<input name="desc" required value="${esc(e.desc)}" placeholder="Ex: Padaria, supermercado, farmácia" list="descs" autocomplete="off" enterkeyhint="next"></label>
     <datalist id="descs">${[...new Set(S.entries.filter(x=>!isParc(x)).map(x=>x.desc))].slice(-120).map(d=>`<option value="${esc(d)}">`).join("")}</datalist>
-    <label class="f">Valor (R$)<input name="valor" required inputmode="decimal" value="${fmtIn(e.valor)}" placeholder="1.250,90"></label>
+    <label class="f">Valor (R$)<input name="valor" required inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${fmtIn(e.valor)}" placeholder="1.250,90"></label>
     <label class="f">Vertente<select name="cat" required>${catOptions(e.cat)}</select></label>
     <label class="f full">Forma de pagamento<select name="forma">${formaOptions(formaKey(e))}</select></label>
     <p class="note full" id="formaHint" style="margin:-6px 0 0"></p>
     ${divisaoFields(e)}
-    <label class="f">Data do gasto<input name="data" type="date" value="${esc(e.data||"")}"></label>
-    <label class="f" id="vencLbl">Vencimento<input name="venc" type="date" value="${esc(e.venc||"")}"></label>
-    <label class="f">Entra no mês<input name="month" type="month" required value="${esc(e.month)}"></label>
-    <label class="f">Tipo<select name="tipo">${isParc(e)?`<option value="parcela" selected>Parcela</option>`:`<option value="variavel" ${isVar(e)?"selected":""}>Variável</option><option value="fixa" ${isFixa(e)?"selected":""}>Fixa</option>`}</select></label>
-    <label class="f full">Observação<input name="obs" value="${esc(e.obs||"")}" placeholder="Opcional"></label>
     <p class="note full" id="valPrev" style="margin:0"></p>
-    <label class="check full" id="pagoLbl"><input type="checkbox" name="pago" ${e.pago?"checked":""}> Já está paga</label>
-    <label class="check full"><input type="checkbox" name="estimado" ${e.estimado?"checked":""}> Valor estimado (confirmar quando a conta chegar)</label>
-    ${isNew?`<p class="note full" style="margin:0">Comprou parcelado? <button type="button" class="btn small" data-toplan>Cadastrar compra parcelada</button></p>`:""}
-  `,{submit:isNew?"Lançar":"Salvar", del:isNew?null:()=>deleteEntry(e.id)});
+    <details class="full mais" ${isNew?"":"open"}><summary>Mais opções (data, mês, tipo, observação)</summary>
+      <div class="fields" style="margin-top:10px">
+        <label class="f">Data do gasto<input name="data" type="date" value="${esc(e.data||"")}"></label>
+        <label class="f" id="vencLbl">Vencimento<input name="venc" type="date" value="${esc(e.venc||"")}"></label>
+        <label class="f">Entra no mês<input name="month" type="month" required value="${esc(e.month)}"></label>
+        <label class="f">Tipo<select name="tipo">${isParc(e)?`<option value="parcela" selected>Parcela</option>`:`<option value="variavel" ${isVar(e)?"selected":""}>Variável</option><option value="fixa" ${isFixa(e)?"selected":""}>Fixa</option>`}</select></label>
+        <label class="f full">Observação<input name="obs" value="${esc(e.obs||"")}" placeholder="Opcional"></label>
+        <label class="check full" id="pagoLbl"><input type="checkbox" name="pago" ${e.pago?"checked":""}> Já está paga</label>
+        <label class="check full"><input type="checkbox" name="estimado" ${e.estimado?"checked":""}> Valor estimado (confirmar quando a conta chegar)</label>
+        ${isNew?`<p class="note full" style="margin:0">Comprou parcelado? <button type="button" class="btn small" data-toplan>Cadastrar compra parcelada</button></p>`:""}
+      </div>
+    </details>
+  `,{submit:isNew?"Lançar":"Salvar", del:isNew?null:()=>deleteEntry(e.id), extra:isNew?"Lançar e continuar":null});
+  const btnExtra=f.querySelector("[data-extra]");
+  if(btnExtra) btnExtra.onclick=()=>{ S.seguir=true; f.requestSubmit(); };
   const tp=f.querySelector("[data-toplan]"); if(tp) tp.onclick=()=>{ $("#dlg").close(); openPlan(); };
   const valorOrig=q("valor").value;
   let autoV=false;
@@ -1163,11 +1199,12 @@ function openEntry(e,preset){
       pago: fp.forma==="cartao" ? (isNew?false:!!e.pago) : !!d.get("pago"), atualizadoPor:S.me, atualizadoEm:now};
     if(isNew){ obj.criadoPor=S.me; obj.criadoEm=now; }
     if(!isNew&&(e.recId||e.auto)) obj.editadoManual=true;
-    $("#dlg").close();
+    if(!S.seguir) $("#dlg").close();
     await Store.put("lancamentos",obj);
     if(month!==S.month){ S.notice={desc,month,card:fp.forma==="cartao"}; render(); }
     toast(isNew?`Lançado ${moneyF(valor)} em ${monthName(month)}`:"Salvo");
     scheduleSync();
+    if(S.seguir){ S.seguir=false; setTimeout(()=>openEntry(null,{forma:formaKey(obj)}),150); }   /* lançar outra na sequência */
   };
   $("#dlg").showModal();
   if(isNew) q("desc").focus();
@@ -1368,6 +1405,7 @@ const go = (patch) => { Object.assign(S,patch); render(); window.scrollTo({top:0
 $("#prev").onclick=()=>go({month:shiftMonth(S.month,-1)});
 $("#next").onclick=()=>go({month:shiftMonth(S.month,1)});
 $("#me").onchange=e=>{ S.me=e.target.value; try{ localStorage.setItem("nc-me",S.me); }catch(_){} };
+$("#monthLabel").onclick=()=>{ if(S.month!==curMonth()) go({month:curMonth()}); };
 $("#tabs").onclick=e=>{
   const b=e.target.closest("[data-tab]"); if(!b) return;
   const patch={tab:b.dataset.tab};
